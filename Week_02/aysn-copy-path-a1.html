@@ -1,0 +1,180 @@
+<html>
+
+<head>
+    <title>
+        异步编程方式的寻路游戏地图--启发式搜索
+    </title>
+    <style>
+        .cell {
+            display: inline-block;
+            line-height: 10px;
+            width: 6px;
+            height: 6px;
+            background-color: gray;
+            border-bottom: solid 1px white;
+            border-right: solid 1px white;
+            vertical-align: top;
+        }
+        
+        #container {
+            width: 701px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="container"></div>
+    <button onclick="localStorage['map'] = JSON.stringify(map)">保存</button>
+    <button onclick="clean(map)">清理</button>
+    <script>
+        class Sorted {
+            constructor(data, compare) {
+                this.data = data.slice();
+                this.compare = compare || ((a, b) => a - b);
+            }
+
+            take() {
+                if (!this.data.length) {
+                    return;
+                }
+                let min = this.data[0];
+                let minIndex = 0;
+                for (let i = 0; i < this.data.length; i++) {
+                    if (this.compare(min, this.data[i]) > 0) {
+                        min = this.data[i];
+                        minIndex = i;
+                    }
+                }
+                this.data[minIndex] = this.data[this.data.length - 1];
+                this.data.pop();
+                return min;
+            }
+            give(v) {
+                this.data.push(v);
+            }
+        }
+        //localStorage["map"] = JSON.stringify(new Array(10000).fill(0));
+        let map = localStorage["map"] ? JSON.parse(localStorage["map"]) : new Array(10000).fill(0);
+        let col = 100;
+        let row = 100;
+        let container = document.getElementById("container");
+
+        function sleep(t) {
+            return new Promise(function(reslover) {
+                setTimeout(reslover, t);
+            });
+        }
+
+
+        function init(map) {
+            for (let i = 0; i < row; i++) {
+                for (let j = 0; j < col; j++) {
+                    let cell = document.createElement("div");
+                    cell.classList.add("cell");
+                    if (map[i * row + j] == 1) {
+                        cell.style.backgroundColor = "black";
+                    }
+                    //访问过的路径进行着色
+                    if (map[i * row + j] == 2) {
+                        cell.style.backgroundColor = "red";
+                    }
+                    cell.addEventListener("mousemove", () => {
+                        if (mousedown) {
+                            if (clear) {
+                                cell.style.backgroundColor = "";
+                                map[i * row + j] = 0;
+                            } else {
+                                cell.style.backgroundColor = "black";
+                                map[i * row + j] = 1;
+                            }
+                        }
+                    })
+                    container.appendChild(cell);
+                }
+            }
+        }
+        init(map);
+
+        let mousedown = false;
+        let clear = false;
+
+        document.addEventListener("mousedown", e => {
+            mousedown = true;
+            clear = (e.which === 3);
+        });
+        document.addEventListener("mouseup", () => mousedown = false);
+        document.addEventListener("contextmenu", e => e.preventDefault());
+
+        /**
+         * 广度优先搜索
+         */
+        async function path(map, start, end) {
+            //创建一个队列
+            let queue = [start];
+            let table = Object.create(map);
+            // let table = new Array(map.length).fill(0);
+
+            /**
+             * 创建插入函数
+             */
+            async function insert(x, y, prev) {
+                if (x < 0 || y < 0 || x >= row || y >= col) {
+                    return;
+                }
+                if (table[x * row + y]) {
+                    return;
+                }
+                map[x * row + y] = 2;
+                table[x * row + y] = prev
+                    //await sleep(3);
+                let nodes = document.getElementById("container").childNodes;
+                nodes[x * row + y].style.backgroundColor = "red";
+
+                queue.push([x, y]);
+            }
+
+            while (queue.length) {
+                let [x, y] = queue.shift();
+                // console.log(x + "," + y + ":");
+                if (x === end[0] && y === end[1]) {
+                    let retPath = [];
+
+                    while (x != start[0] || y != start[1]) {
+                        retPath.push(map[x * row + y]);
+                        [x, y] = table[x * row + y];
+                        console.log([x, y]);
+
+                        document.getElementById("container").childNodes[x * row + y].style.backgroundColor = "purple";
+                    }
+                    //console.log(table);
+                    return retPath;
+                }
+
+                await insert(x - 1, y, [x, y]);
+                await insert(x, y - 1, [x, y]);
+                await insert(x + 1, y, [x, y]);
+                await insert(x, y + 1, [x, y]);
+
+                await insert(x - 1, y - 1, [x, y]);
+                await insert(x - 1, y + 1, [x, y]);
+                await insert(x + 1, y - 1, [x, y]);
+                await insert(x + 1, y + 1, [x, y]);
+            }
+
+            return [];
+        }
+
+        /**
+         * 清理
+         */
+        function clean(map) {
+            map.fill(0);
+            localStorage['map'] = JSON.stringify(map);
+            document.getElementById("container").innerHTML = "";
+            console.log(map.length)
+            init(map);
+        }
+    </script>
+</body>
+
+</html>
